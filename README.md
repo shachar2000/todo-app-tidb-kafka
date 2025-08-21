@@ -37,17 +37,17 @@ TiKV Status: 20180
 ---
 
 ## Services Description
-pd	Placement Driver for TiDB cluster  
-tikv	Storage node for TiDB  
-tidb	SQL node for TiDB  
-ticdc	TiDB CDC server for tracking DB changes  
-ticdc-setup	Script to automatically create a changefeed for Kafka  
-db-init	Initializes TiDB with tables and a default user  
-kafka	Kafka broker for message streaming  
-kafka-ui	Web UI for monitoring Kafka topics  
-frontend	React or HTML frontend for the Todo App  
-backend	Node.js backend with login & JWT authentication  
-consumer	Node.js consumer application to read DB changes from Kafka  
+pd:	Placement Driver for TiDB cluster  
+tikv:	Storage node for TiDB  
+tidb:	SQL node for TiDB  
+ticdc:	TiDB CDC server for tracking DB changes  
+ticdc-setup:	Script to automatically create a changefeed for Kafka  
+db-init:	Initializes TiDB with tables and a default user  
+kafka:	Kafka broker for message streaming  
+kafka-ui:	Web UI for monitoring Kafka topics  
+frontend:	HTML frontend for the Todo App  
+backend:	Node.js backend with login & JWT authentication  
+consumer:	Node.js consumer application to read DB changes from Kafka  
 
 ---
 
