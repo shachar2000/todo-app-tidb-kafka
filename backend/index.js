@@ -23,7 +23,7 @@ const app = express();
 
 app.use(cors());
 app.use(bodyParser.json());
-app.use('/auth', authRoutes);  // route ה-login שלך
+app.use('/auth', authRoutes);
 
 const port = 3000;
 app.listen(port, () => logger.info(`Backend listening on port ${port}`));
