@@ -1,0 +1,238 @@
+version: '3.8'
+
+services:
+  # Kafka (KRaft mode - no Zookeeper needed)
+  kafka:
+    image: bitnami/kafka:3.5
+    container_name: kafka
+    environment:
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_CFG_NUM_PARTITIONS=3
+      - KAFKA_CFG_DEFAULT_REPLICATION_FACTOR=1
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    volumes:
+      - kafka_data:/bitnami/kafka
+    networks:
+      - tidb-network
+
+  # TiDB Cluster Components
+  pd:
+    image: pingcap/pd:v7.5.1
+    container_name: pd
+    ports:
+      - "2379:2379"
+    volumes:
+      - pd_data:/pd-data
+      - pd_logs:/logs
+    command:
+      - --name=pd
+      - --data-dir=/pd-data
+      - --client-urls=http://0.0.0.0:2379
+      - --peer-urls=http://0.0.0.0:2380
+      - --advertise-client-urls=http://pd:2379
+      - --advertise-peer-urls=http://pd:2380
+      - --initial-cluster=pd=http://pd:2380
+      - --log-file=/logs/pd.log
+    restart: unless-stopped
+    networks:
+      - tidb-network
+
+  tikv:
+    image: pingcap/tikv:v7.5.1
+    container_name: tikv
+    volumes:
+      - tikv_data:/tikv-data
+      - tikv_logs:/logs
+    command:
+      - --addr=0.0.0.0:20160
+      - --status-addr=0.0.0.0:20180
+      - --advertise-addr=tikv:20160
+      - --data-dir=/tikv-data
+      - --pd=pd:2379
+      - --log-file=/logs/tikv.log
+    depends_on:
+      - pd
+    ports:
+      - "20160:20160"
+      - "20180:20180"
+    restart: unless-stopped
+    networks:
+      - tidb-network
+
+  tidb:
+    image: pingcap/tidb:v7.5.1
+    container_name: tidb
+    depends_on:
+      - pd
+      - tikv
+    ports:
+      - "4000:4000"
+      - "10080:10080"
+    volumes:
+      - tidb_logs:/logs
+    command:
+      - --store=tikv
+      - --path=pd:2379
+      - --log-file=/logs/tidb.log
+      - --advertise-address=tidb
+    restart: unless-stopped
+    networks:
+      - tidb-network
+
+  ticdc:
+    image: pingcap/ticdc:v7.5.1
+    container_name: ticdc
+    depends_on:
+      - pd
+      - tikv
+      - tidb
+    volumes:
+      - ticdc_data:/ticdc-data
+      - ticdc_logs:/logs
+    command: 
+      - /cdc
+      - server
+      - --pd=http://pd:2379
+      - --addr=0.0.0.0:8300
+      - --advertise-addr=ticdc:8300
+      - --data-dir=/ticdc-data
+      - --log-file=/logs/ticdc.log
+    ports:
+      - "8300:8300"
+    restart: unless-stopped
+    networks:
+      - tidb-network
+
+  # Automatic TiCDC changefeed creation
+  ticdc-setup:
+    image: pingcap/ticdc:v7.5.1
+    container_name: ticdc-setup
+    depends_on:
+      - ticdc
+      - kafka
+      - db-init
+    command: >
+      sh -c "
+        echo 'Waiting for TiCDC and Kafka to be ready...';
+        sleep 60;
+        
+        echo 'Checking TiCDC status...';
+        until /cdc cli capture list --server=http://ticdc:8300 2>/dev/null; do
+          echo 'TiCDC not ready, waiting...';
+          sleep 5;
+        done;
+        
+        echo 'Creating changefeed: todo-cf';
+        /cdc cli changefeed create --server=http://ticdc:8300 --changefeed-id='todo-cf' --sink-uri='kafka://kafka:9092/test-topic?protocol=canal-json&partition-num=1' --start-ts=0 || echo 'Changefeed creation failed or already exists';
+        
+        echo 'Listing all changefeeds:';
+        /cdc cli changefeed list --server=http://ticdc:8300;
+        
+        echo 'Setup completed. Keeping container alive...';
+        tail -f /dev/null;
+      "
+    restart: unless-stopped
+    networks:
+      - tidb-network
+
+  # Insert sample data automatically
+  db-init:
+      image: mysql:8.0
+      container_name: db-init
+      depends_on:
+        - tidb
+      volumes:
+        - ./init.sql:/init.sql
+      networks:
+        - tidb-network
+      command: >
+        sh -c "
+            echo 'Waiting for TiDB to be ready...';
+            sleep 60;
+            echo 'Running init.sql on TiDB...';
+            mysql -h tidb -P 4000 -u root < /init.sql;
+            echo 'DB init done. Keeping container alive...';
+            tail -f /dev/null
+        "
+      restart: unless-stopped
+
+
+
+
+  # MySQL Client for manual queries
+  mysql-client:
+    image: mysql:8.0
+    container_name: mysql-client
+    command: tail -f /dev/null
+    depends_on:
+      - tidb
+    environment:
+      - MYSQL_ALLOW_EMPTY_PASSWORD=yes
+    restart: unless-stopped
+    networks:
+      - tidb-network
+
+  # Kafka UI to monitor messages
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8081:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    depends_on:
+      - kafka
+    restart: unless-stopped
+    networks:
+      - tidb-network
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    networks:
+      - tidb-network
+
+  backend:
+    build: ./backend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - tidb
+    networks:
+      - tidb-network
+
+  consumer:
+    build: ./consumer
+    container_name: todo-consumer
+    depends_on:
+        - kafka
+    networks:
+        - tidb-network
+    restart: unless-stopped
+
+
+volumes:
+  kafka_data:
+  pd_data:
+  pd_logs:
+  tikv_data:
+  tikv_logs:
+  tidb_logs:
+  ticdc_data:
+  ticdc_logs:
+
+networks:
+  tidb-network:
+    driver: bridge
