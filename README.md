@@ -3,7 +3,7 @@
 ## Overview
 This is a full-stack Todo App project including:  
 - **Backend:** Node.js + Express.js  
-- **Frontend:** React (or basic HTML)  
+- **Frontend:** basic HTML 
 - **Database:** TiDB  
 - **Message Queue:** Apache Kafka  
 - **CDC:** Change Data Capture to track database changes  
@@ -19,7 +19,9 @@ To start all services:
 
 ```bash
 docker-compose up --build -d
-Exposed Ports
+```
+
+## Exposed Ports
 Frontend Website: http://localhost:8080
 
 Backend API: http://localhost:3000
