@@ -21,6 +21,8 @@ To start all services:
 docker-compose up --build -d
 ```
 
+---
+
 ## Exposed Ports
 Frontend Website: http://localhost:8080
 
@@ -32,21 +34,24 @@ TiDB SQL: 4000
 
 TiKV Status: 20180
 
-Services Description
-Service	Description
-pd	Placement Driver for TiDB cluster
-tikv	Storage node for TiDB
-tidb	SQL node for TiDB
-ticdc	TiDB CDC server for tracking DB changes
-ticdc-setup	Script to automatically create a changefeed for Kafka
-db-init	Initializes TiDB with tables and a default user
-kafka	Kafka broker for message streaming
-kafka-ui	Web UI for monitoring Kafka topics
-frontend	React or HTML frontend for the Todo App
-backend	Node.js backend with login & JWT authentication
-consumer	Node.js consumer application to read DB changes from Kafka
+---
 
-Database Initialization
+## Services Description
+pd	Placement Driver for TiDB cluster  
+tikv	Storage node for TiDB  
+tidb	SQL node for TiDB  
+ticdc	TiDB CDC server for tracking DB changes  
+ticdc-setup	Script to automatically create a changefeed for Kafka  
+db-init	Initializes TiDB with tables and a default user  
+kafka	Kafka broker for message streaming  
+kafka-ui	Web UI for monitoring Kafka topics  
+frontend	React or HTML frontend for the Todo App  
+backend	Node.js backend with login & JWT authentication  
+consumer	Node.js consumer application to read DB changes from Kafka  
+
+---
+
+## Database Initialization
 Check logs for db-init:
 
 bash
